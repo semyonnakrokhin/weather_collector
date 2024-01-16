@@ -1,8 +1,7 @@
 import json
 import os
 import sys
-from contextlib import AbstractContextManager
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,43 +14,42 @@ from mappers.abstractions import AbstractDomainEntityMapper  # noqa
 from mappers.realisations import WeatherDatabaseMapper  # noqa
 from models.domains import WeatherDomain  # noqa
 from models.entities import WeatherORMModel  # noqa
-from repositories.abstractions import (  # noqa
-    AbstractDatabaseRepository,  # noqa
-    AbstractFileRepository,  # noqa
-)
+from repositories.abstractions import AbstractDatabaseRepository  # noqa
+from repositories.abstractions import AbstractFileRepository  # noqa; noqa
 
 
 class WeatherDatabaseRepository(AbstractDatabaseRepository[WeatherDomain]):
-    """
-    WeatherDatabaseRepository is a concrete implementation of AbstractDatabaseRepository
-    for managing weather data in a database.
+    """WeatherDatabaseRepository is a concrete implementation of
+    AbstractDatabaseRepository for managing weather data in a database.
 
     Attributes:
-        model (Type[WeatherORMModel]): The ORM model representing weather data in the database.
+        model (Type[WeatherORMModel]): The ORM model representing
+        weather data in the database.
     """
 
     model = WeatherORMModel
 
     def __init__(self, mapper: AbstractDomainEntityMapper):
-        """
-        Initializes the repository with a specified mapper for data transformation.
+        """Initializes the repository with a specified mapper for data
+        transformation.
 
         Parameters:
-            mapper (AbstractDomainEntityMapper): The mapper used for transforming data between
-                domain and database entity models.
+            mapper (AbstractDomainEntityMapper): The mapper used for
+            transforming data between domain and database entity models.
         """
         self._session: Optional[AsyncSession] = None
         self._mapper = mapper
 
     def set_session(self, session: AsyncSession) -> None:
-        """
-        Sets the current database session.
+        """Sets the current database session.
 
         Parameters:
             session (AsyncSession): The database session to be set.
         """
         if type(session) is not AsyncSession:
-            raise SessionNotSetError(f"Session cannot be {type(session)}. Provide a valid AsyncSession.")
+            raise SessionNotSetError(
+                f"Session cannot be {type(session)}. Provide a valid AsyncSession."
+            )
         self._session = session
 
     def clear_session(self) -> None:
@@ -59,34 +57,45 @@ class WeatherDatabaseRepository(AbstractDatabaseRepository[WeatherDomain]):
         self._session = None
 
     async def add_all(self, data_list: list[WeatherDomain]) -> None:
-        """
-        Adds a list of WeatherDomain objects to the database.
+        """Adds a list of WeatherDomain objects to the database.
 
         Parameters:
-            data_list (list[WeatherDomain]): The list of weather data to be added to the database.
+            data_list (list[WeatherDomain]): The list of weather data
+            to be added to the database.
         """
         if self._session is None:
-            raise SessionNotSetError("Session not set. Call set_session() before using the repository.")
+            raise SessionNotSetError(
+                "Session not set. Call set_session() before using the repository."
+            )
 
         entity_list = [self._mapper.to_entity(domain_obj=data) for data in data_list]
-        entity_dicts_list = [{key: value for key, value in entity.__dict__.items() if key != '_sa_instance_state'}
-                             for entity in entity_list]
+        entity_dicts_list = [
+            {
+                key: value
+                for key, value in entity.__dict__.items()
+                if key != "_sa_instance_state"
+            }
+            for entity in entity_list
+        ]
 
         stmt = insert(self.model).values(entity_dicts_list)
         await self._session.execute(stmt)
 
     async def find_all(self, **filter_by: dict) -> list[WeatherDomain]:
-        """
-        Finds weather data in the database based on specified filters.
+        """Finds weather data in the database based on specified filters.
 
         Parameters:
-            **filter_by (dict): Keyword arguments representing filters to apply during the search.
+            **filter_by (dict): Keyword arguments representing filters
+            to apply during the search.
 
         Returns:
-            list[WeatherDomain]: The list of weather data matching the specified filters.
+            list[WeatherDomain]: The list of weather data matching
+            the specified filters.
         """
         if self._session is None:
-            raise SessionNotSetError("Session not set. Call set_session() before using the repository.")
+            raise SessionNotSetError(
+                "Session not set. Call set_session() before using the repository."
+            )
 
         query = select(self.model).select_from(self.model).filter_by(**filter_by)
         result_orm = await self._session.execute(query)

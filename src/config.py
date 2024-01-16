@@ -1,5 +1,4 @@
 import os
-import time
 from datetime import datetime
 from pprint import pprint
 from typing import List
@@ -7,12 +6,12 @@ from typing import List
 from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 """
 Configuration Module
 
-This module provides a configuration structure for the weather collector application. 
-The configuration includes settings for API clients, database connection, file repositories, and storage services.
+This module provides a configuration structure for the weather collector application.
+The configuration includes settings for API clients, database connection,
+file repositories,and storage services.
 
 Example Configuration Structure:
 {
@@ -60,9 +59,9 @@ class ApiClients(BaseModel):
 class StorageServices(BaseModel):
     selected_storage_services: str
 
-    @field_validator('selected_storage_services')
+    @field_validator("selected_storage_services")
     def parse_to_list(cls, v: str) -> List[str]:
-        return v.split(',')
+        return v.split(",")
 
 
 class Repository(BaseModel):
@@ -129,10 +128,12 @@ class Database(BaseModel):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=env_filepath,
-                                      env_nested_delimiter="__",
-                                      case_sensitive=False,
-                                      extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=env_filepath,
+        env_nested_delimiter="__",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     api_clients: ApiClients
     storage_services: StorageServices
@@ -146,6 +147,6 @@ class Settings(BaseSettings):
     #     extra = "ignore"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     settings = Settings()
     pprint(settings.model_dump())

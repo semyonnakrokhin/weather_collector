@@ -14,19 +14,21 @@ from models.entities import JsonEntity, TextfileEntity, WeatherORMModel  # noqa
 class OpenweathermapWeatherMapper(
     AbstractDTOMapper[JsonOpenweathermapResponseDTO, WeatherDomain]
 ):
-    """
-    OpenweathermapWeatherMapper implements the AbstractDTOMapper interface
-    for transforming OpenWeatherMap weather data from DTO to the domain model.
-    """
+    """OpenweathermapWeatherMapper implements the AbstractDTOMapper interface
+    for transforming OpenWeatherMap weather data from DTO to the domain
+    model."""
+
     def to_target(self, source_obj: JsonOpenweathermapResponseDTO) -> WeatherDomain:
-        """
-        Maps data from a JsonOpenweathermapResponseDTO to a WeatherDomain object.
+        """Maps data from a JsonOpenweathermapResponseDTO to a WeatherDomain
+        object.
 
         Args:
-            source_obj (JsonOpenweathermapResponseDTO): The source DTO representing OpenWeatherMap weather data.
+            source_obj (JsonOpenweathermapResponseDTO): The source DTO
+            representing OpenWeatherMap weather data.
 
         Returns:
-            WeatherDomain: The target domain model object representing weather information.
+            WeatherDomain: The target domain model object representing weather
+            information.
         """
 
         translation = {
@@ -60,29 +62,30 @@ class OpenweathermapWeatherMapper(
 
 
 class WeatherDatabaseMapper(AbstractDomainEntityMapper[WeatherDomain, WeatherORMModel]):
-    """
-    WeatherDatabaseMapper implements the AbstractDomainEntityMapper interface
-    for transforming weather data between the domain model and the database entity.
-    """
+    """WeatherDatabaseMapper implements the AbstractDomainEntityMapper
+    interface for transforming weather data between the domain model and the
+    database entity."""
+
     def to_entity(self, domain_obj: WeatherDomain) -> WeatherORMModel:
-        """
-        Maps data from a WeatherDomain object to a WeatherORMModel entity.
+        """Maps data from a WeatherDomain object to a WeatherORMModel entity.
 
         Args:
-            domain_obj (WeatherDomain): The source domain model representing weather data.
+            domain_obj (WeatherDomain): The source domain model representing
+            weather data.
 
         Returns:
-            WeatherORMModel: The target entity object representing weather data in the database.
+            WeatherORMModel: The target entity object representing
+            weather data in the database.
         """
 
         return WeatherORMModel(**domain_obj.model_dump())
 
     def to_domain(self, entity_obj: WeatherORMModel) -> WeatherDomain:
-        """
-        Maps data from a WeatherORMModel entity to a WeatherDomain object.
+        """Maps data from a WeatherORMModel entity to a WeatherDomain object.
 
         Args:
-            entity_obj (WeatherORMModel): The source entity object representing weather data in the database.
+            entity_obj (WeatherORMModel): The source entity object representing
+            weather data in the database.
 
         Returns:
             WeatherDomain: The target domain model object representing weather data.
@@ -96,9 +99,8 @@ class WeatherDatabaseMapper(AbstractDomainEntityMapper[WeatherDomain, WeatherORM
 
 
 class TextfileMapper(AbstractDomainEntityMapper[WeatherDomain, TextfileEntity]):
-    """
-    TextfileMapper implements the AbstractDomainEntityMapper interface
-    for transforming weather data between the domain model and a text file entity.
+    """TextfileMapper implements the AbstractDomainEntityMapper interface for
+    transforming weather data between the domain model and a text file entity.
 
     Attributes:
         DATE_FORMAT (str): Date format for formatting timestamps in the text file.
@@ -109,14 +111,15 @@ class TextfileMapper(AbstractDomainEntityMapper[WeatherDomain, TextfileEntity]):
     TIME_FORMAT = "%H:%M"
 
     def to_entity(self, domain_obj: WeatherDomain) -> TextfileEntity:
-        """
-        Maps data from a WeatherDomain object to a TextfileEntity.
+        """Maps data from a WeatherDomain object to a TextfileEntity.
 
         Args:
-            domain_obj (WeatherDomain): The source domain model representing weather data.
+            domain_obj (WeatherDomain): The source domain model
+            representing weather data.
 
         Returns:
-            TextfileEntity: The target entity object representing weather data in a text file.
+            TextfileEntity: The target entity object
+            representing weather data in a text file.
         """
 
         domain_dict = domain_obj.model_dump()
@@ -132,11 +135,11 @@ class TextfileMapper(AbstractDomainEntityMapper[WeatherDomain, TextfileEntity]):
         return TextfileEntity(formatted_string)
 
     def to_domain(self, entity_obj: TextfileEntity) -> WeatherDomain:
-        """
-        Maps data from a TextfileEntity to a WeatherDomain object.
+        """Maps data from a TextfileEntity to a WeatherDomain object.
 
         Args:
-            entity_obj (TextfileEntity): The source entity object representing weather data in a text file.
+            entity_obj (TextfileEntity): The source entity object
+            representing weather data in a text file.
 
         Returns:
             WeatherDomain: The target domain model object representing weather data.
@@ -177,20 +180,20 @@ class TextfileMapper(AbstractDomainEntityMapper[WeatherDomain, TextfileEntity]):
 
 
 class JsonMapper(AbstractDomainEntityMapper[WeatherDomain, JsonEntity]):
-    """
-    JsonMapper implements the AbstractDomainEntityMapper interface
-    for transforming weather data between the domain model and a JSON file entity.
-    """
+    """JsonMapper implements the AbstractDomainEntityMapper interface for
+    transforming weather data between the domain model and a JSON file
+    entity."""
 
     def to_entity(self, domain_obj: WeatherDomain) -> JsonEntity:
-        """
-        Maps data from a WeatherDomain object to a JsonEntity.
+        """Maps data from a WeatherDomain object to a JsonEntity.
 
         Args:
-            domain_obj (WeatherDomain): The source domain model representing weather data.
+            domain_obj (WeatherDomain): The source domain model
+            representing weather data.
 
         Returns:
-            JsonEntity: The target entity object representing weather data in JSON format.
+            JsonEntity: The target entity object
+            representing weather data in JSON format.
         """
 
         payload = domain_obj.model_dump()
@@ -205,11 +208,11 @@ class JsonMapper(AbstractDomainEntityMapper[WeatherDomain, JsonEntity]):
         return JsonEntity(payload)
 
     def to_domain(self, entity_obj: JsonEntity) -> WeatherDomain:
-        """
-        Maps data from a JsonEntity to a WeatherDomain object.
+        """Maps data from a JsonEntity to a WeatherDomain object.
 
         Args:
-            entity_obj (JsonEntity): The source entity object representing weather data in JSON format.
+            entity_obj (JsonEntity): The source entity object
+            representing weather data in JSON format.
 
         Returns:
             WeatherDomain: The target domain model object representing weather data.

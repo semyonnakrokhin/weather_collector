@@ -2,24 +2,25 @@ from dependency_injector import containers, providers
 
 from apiclients.realisations import OpenweathermapByCityAPIClient
 from config import Settings
+
 # from config_1_7 import Settings
 from database.db import Database
 from mappers.realisations import (
     JsonMapper,
+    OpenweathermapWeatherMapper,
     TextfileMapper,
     WeatherDatabaseMapper,
-    OpenweathermapWeatherMapper,
 )
 from master import MasterService
+from repositories.manager import DatabaseRepositoriesManager
 from repositories.realisations import (
     JsonRepository,
     TextfileRepository,
     WeatherDatabaseRepository,
 )
-from repositories.manager import DatabaseRepositoriesManager
-from units_of_work.realisations import WeatherUnitOfWork
-from storage_services.realisations import DatabaseService, FileService
 from storage_services.manager import StorageServiceManager
+from storage_services.realisations import DatabaseService, FileService
+from units_of_work.realisations import WeatherUnitOfWork
 
 
 class Mappers(containers.DeclarativeContainer):
@@ -46,32 +47,30 @@ class Repositories(containers.DeclarativeContainer):
     json_repo_provider = providers.Singleton(
         JsonRepository,
         filepath=config.json_repo.filepath,
-        mapper=mappers.json_mapper_provider
+        mapper=mappers.json_mapper_provider,
     )
 
     database_repositories_list_provider = providers.List(
-        providers.Singleton(WeatherDatabaseRepository, mapper=mappers.weather_database_mapper_provider)
+        providers.Singleton(
+            WeatherDatabaseRepository, mapper=mappers.weather_database_mapper_provider
+        )
     )
 
 
 class Database(containers.DeclarativeContainer):
     config = providers.Configuration()
 
-    database_provider = providers.Singleton(
-        Database,
-        db_url=config.dsn
-    )
+    database_provider = providers.Singleton(Database, db_url=config.dsn)
 
 
 class UnitsOfWork(containers.DeclarativeContainer):
-
     database = providers.DependenciesContainer()
 
     repositories = providers.DependenciesContainer()
 
     database_repositories_manager_provider = providers.Singleton(
         DatabaseRepositoriesManager,
-        repository_instances=repositories.database_repositories_list_provider
+        repository_instances=repositories.database_repositories_list_provider,
     )
 
     weather_uow_provider = providers.Singleton(
@@ -82,7 +81,6 @@ class UnitsOfWork(containers.DeclarativeContainer):
 
 
 class StorageServices(containers.DeclarativeContainer):
-
     config = providers.Configuration()
 
     repositories = providers.DependenciesContainer()
@@ -90,15 +88,27 @@ class StorageServices(containers.DeclarativeContainer):
     units_of_work = providers.DependenciesContainer()
 
     storage_services_list_provider = providers.List(
-        providers.Singleton(DatabaseService, uow=units_of_work.weather_uow_provider, service_designation="db"),
-        providers.Singleton(FileService, repository=repositories.text_repo_provider, service_designation="text"),
-        providers.Singleton(FileService, repository=repositories.json_repo_provider, service_designation="json"),
+        providers.Singleton(
+            DatabaseService,
+            uow=units_of_work.weather_uow_provider,
+            service_designation="db",
+        ),
+        providers.Singleton(
+            FileService,
+            repository=repositories.text_repo_provider,
+            service_designation="text",
+        ),
+        providers.Singleton(
+            FileService,
+            repository=repositories.json_repo_provider,
+            service_designation="json",
+        ),
     )
 
     storage_services_manager_provider = providers.Factory(
         StorageServiceManager,
         all_storage_services=storage_services_list_provider,
-        selected_storage_services=config.selected_storage_services
+        selected_storage_services=config.selected_storage_services,
     )
 
 
@@ -128,44 +138,32 @@ class Master(containers.DeclarativeContainer):
 class Application(containers.DeclarativeContainer):
     config = providers.Configuration()
 
-    mappers = providers.Container(
-        Mappers
-    )
+    mappers = providers.Container(Mappers)
 
     repositories = providers.Container(
-        Repositories,
-        config=config.repositories,
-        mappers=mappers
+        Repositories, config=config.repositories, mappers=mappers
     )
 
-    database = providers.Container(
-        Database,
-        config=config.database
-    )
+    database = providers.Container(Database, config=config.database)
 
     units_of_work = providers.Container(
-        UnitsOfWork,
-        database=database,
-        repositories=repositories
+        UnitsOfWork, database=database, repositories=repositories
     )
 
     storage_services = providers.Container(
         StorageServices,
         config=config.storage_services,
         repositories=repositories,
-        units_of_work=units_of_work
+        units_of_work=units_of_work,
     )
 
-    api_clients = providers.Container(
-        ApiClients,
-        config=config.api_clients
-    )
+    api_clients = providers.Container(ApiClients, config=config.api_clients)
 
     master = providers.Container(
         Master,
         storage_services=storage_services,
         api_clients=api_clients,
-        mappers=mappers
+        mappers=mappers,
     )
 
 

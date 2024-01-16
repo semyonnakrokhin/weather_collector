@@ -1,6 +1,6 @@
-from contextlib import contextmanager, AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -9,20 +9,19 @@ class Base(DeclarativeBase):
 
 
 class Database:
-    """
-    Database class for managing asynchronous database operations using SQLAlchemy.
-    """
+    """Database class for managing asynchronous database operations using
+    SQLAlchemy."""
+
     def __init__(self, db_url: str) -> None:
         """Initializes the Database instance with the provided database URL."""
         self._async_engine = create_async_engine(db_url)
         self._async_session_factory = async_sessionmaker(
-            bind=self._async_engine,
-            autoflush=False,
-            expire_on_commit=False
+            bind=self._async_engine, autoflush=False, expire_on_commit=False
         )
 
     async def delete_and_create_database(self) -> None:
-        """Firstly delete and then create database tables based on SQLAlchemy Base metadata."""
+        """Firstly delete and then create database tables based on SQLAlchemy
+        Base metadata."""
         async with self._async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
@@ -44,6 +43,7 @@ class Database:
             raise
         finally:
             session.close()
+
 
 # async_engine = create_async_engine(db_url)
 # async_session_maker = async_sessionmaker(async_engine, expire_on_commit=False)

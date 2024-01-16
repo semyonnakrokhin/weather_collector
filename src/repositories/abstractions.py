@@ -13,28 +13,27 @@ from exceptions import RepositoryValidationException  # noqa
 
 
 class AbstractRepository(ABC, Generic[DM]):
-    """
-    AbstractRepository is an abstract class providing a base interface for repositories
-    implementing various data storage strategies.
-    """
+    """AbstractRepository is an abstract class providing a base interface for
+    repositories implementing various data storage strategies."""
 
     @abstractmethod
     async def add_all(self, data_list: list[DM]) -> None:
-        """
-        Abstract method for adding a list of data objects to the repository.
+        """Abstract method for adding a list of data objects to the repository.
 
         Args:
-            data_list (list[DM]): The list of data objects to be added to the repository.
+            data_list (list[DM]): The list of data objects to be added
+            to the repository.
         """
         pass
 
     @abstractmethod
     async def find_all(self, **filter_by: dict) -> list[DM]:
-        """
-        Abstract method for finding data objects in the repository based on specified filters.
+        """Abstract method for finding data objects in the repository based on
+        specified filters.
 
         Args:
-            **filter_by (dict): Keyword arguments representing filters to apply during the search.
+            **filter_by (dict): Keyword arguments representing filters
+            to apply during the search.
 
         Returns:
             list[DM]: The list of data objects matching the specified filters.
@@ -43,15 +42,13 @@ class AbstractRepository(ABC, Generic[DM]):
 
 
 class AbstractDatabaseRepository(AbstractRepository[DM]):
-    """
-    AbstractDatabaseRepository is an abstract class that inherits from AbstractRepository
-    and extends it to implement operations with a database.
-    """
+    """AbstractDatabaseRepository is an abstract class that inherits from
+    AbstractRepository and extends it to implement operations with a
+    database."""
 
     @abstractmethod
     def set_session(self, session: AsyncSession) -> None:
-        """
-        Abstract method for setting the current database session.
+        """Abstract method for setting the current database session.
 
         Args:
             session (AsyncSession): The database session to be set.
@@ -65,8 +62,7 @@ class AbstractDatabaseRepository(AbstractRepository[DM]):
 
     @abstractmethod
     async def add_all(self, data_list: list[DM]) -> None:
-        """
-        Abstract method for adding a list of data objects to the database.
+        """Abstract method for adding a list of data objects to the database.
 
         Args:
             data_list (list[DM]): The list of data objects to be added to the database.
@@ -79,15 +75,13 @@ class AbstractDatabaseRepository(AbstractRepository[DM]):
 
 
 class AbstractFileRepository(AbstractRepository[DM]):
-    """
-    AbstractFileRepository is an abstract class that inherits from AbstractRepository
-    and extends it to implement operations with files.
-    """
+    """AbstractFileRepository is an abstract class that inherits from
+    AbstractRepository and extends it to implement operations with files."""
+
     @staticmethod
     def _check_filepath_exists(filepath: str) -> None:
-        """
-        Static method to check if the directory of the specified filepath exists.
-        If not, it creates the necessary directories.
+        """Static method to check if the directory of the specified filepath
+        exists. If not, it creates the necessary directories.
 
         Args:
             filepath (str): The filepath to check.
@@ -98,8 +92,7 @@ class AbstractFileRepository(AbstractRepository[DM]):
 
     @abstractmethod
     async def add_all(self, data_list: list[DM]) -> None:
-        """
-        Abstract method for adding a list of data objects to a file.
+        """Abstract method for adding a list of data objects to a file.
 
         Args:
             data_list (list[DM]): The list of data objects to be added to the file.
@@ -108,11 +101,12 @@ class AbstractFileRepository(AbstractRepository[DM]):
 
     @abstractmethod
     async def find_all(self, **filter_by: dict) -> list[DM]:
-        """
-        Abstract method for finding data objects in a file based on specified filters.
+        """Abstract method for finding data objects in a file based on
+        specified filters.
 
         Args:
-            **filter_by (dict): Keyword arguments representing filters to apply during the search.
+            **filter_by (dict): Keyword arguments representing filters
+            to apply during the search.
 
         Returns:
             list[DM]: The list of data objects matching the specified filters.
