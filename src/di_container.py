@@ -1,28 +1,35 @@
 from dependency_injector import containers, providers
 
 from apiclients.realisations import OpenweathermapByCityAPIClient
-from config import di_configuration_dict
-from mappers.realisations import JsonMapper, OpenweathermapWeatherMapper, TextfileMapper
+from config import Settings
+# from config_1_7 import Settings
+from database.db import Database
+from mappers.realisations import (
+    JsonMapper,
+    TextfileMapper,
+    WeatherDatabaseMapper,
+    OpenweathermapWeatherMapper,
+)
 from master import MasterService
 from repositories.realisations import (
     JsonRepository,
     TextfileRepository,
-    WeatherUnitOfWork,
+    WeatherDatabaseRepository,
 )
+from repositories.manager import DatabaseRepositoriesManager
+from units_of_work.realisations import WeatherUnitOfWork
 from storage_services.realisations import DatabaseService, FileService
-
-# Temporary workaround, fix after figuring out framework dependency_injector
-selected_storage_services = di_configuration_dict["services"]["storage_services"][
-    "selected_storage_services"
-]
+from storage_services.manager import StorageServiceManager
 
 
 class Mappers(containers.DeclarativeContainer):
-    textfile_mapper = providers.Singleton(TextfileMapper)
+    textfile_mapper_provider = providers.Singleton(TextfileMapper)
 
-    json_mapper = providers.Singleton(JsonMapper)
+    json_mapper_provider = providers.Singleton(JsonMapper)
 
-    client_storage_mapper = providers.Singleton(OpenweathermapWeatherMapper)
+    weather_database_mapper_provider = providers.Singleton(WeatherDatabaseMapper)
+
+    client_storage_mapper_provider = providers.Singleton(OpenweathermapWeatherMapper)
 
 
 class Repositories(containers.DeclarativeContainer):
@@ -30,76 +37,142 @@ class Repositories(containers.DeclarativeContainer):
 
     mappers = providers.DependenciesContainer()
 
-    text_repo = providers.Singleton(
+    text_repo_provider = providers.Singleton(
         TextfileRepository,
-        filepath=config.textfile_path,
-        mapper=mappers.textfile_mapper,
+        filepath=config.text_repo.filepath,
+        mapper=mappers.textfile_mapper_provider,
     )
 
-    json_repo = providers.Singleton(
-        JsonRepository, filepath=config.jsonfile_path, mapper=mappers.json_mapper
+    json_repo_provider = providers.Singleton(
+        JsonRepository,
+        filepath=config.json_repo.filepath,
+        mapper=mappers.json_mapper_provider
     )
 
-    weather_uow = providers.Singleton(WeatherUnitOfWork)
+    database_repositories_list_provider = providers.List(
+        providers.Singleton(WeatherDatabaseRepository, mapper=mappers.weather_database_mapper_provider)
+    )
 
 
-class Services(containers.DeclarativeContainer):
+class Database(containers.DeclarativeContainer):
+    config = providers.Configuration()
+
+    database_provider = providers.Singleton(
+        Database,
+        db_url=config.dsn
+    )
+
+
+class UnitsOfWork(containers.DeclarativeContainer):
+
+    database = providers.DependenciesContainer()
+
+    repositories = providers.DependenciesContainer()
+
+    database_repositories_manager_provider = providers.Singleton(
+        DatabaseRepositoriesManager,
+        repository_instances=repositories.database_repositories_list_provider
+    )
+
+    weather_uow_provider = providers.Singleton(
+        WeatherUnitOfWork,
+        database_repositories_manager=database_repositories_manager_provider,
+        async_session_factory=database.database_provider.provided.get_session_factory,
+    )
+
+
+class StorageServices(containers.DeclarativeContainer):
+
     config = providers.Configuration()
 
     repositories = providers.DependenciesContainer()
 
-    service_factories = {
-        "db": providers.Factory(DatabaseService, uow=repositories.weather_uow),
-        "text": providers.Factory(FileService, repository=repositories.text_repo),
-        "json": providers.Factory(FileService, repository=repositories.json_repo),
-    }
+    units_of_work = providers.DependenciesContainer()
 
-    storage_services = providers.List(
-        *[
-            value
-            for key, value in service_factories.items()
-            if key in selected_storage_services
-        ]
+    storage_services_list_provider = providers.List(
+        providers.Singleton(DatabaseService, uow=units_of_work.weather_uow_provider, service_designation="db"),
+        providers.Singleton(FileService, repository=repositories.text_repo_provider, service_designation="text"),
+        providers.Singleton(FileService, repository=repositories.json_repo_provider, service_designation="json"),
     )
 
-    api_client_service = providers.Factory(
-        OpenweathermapByCityAPIClient, api_key=config.api_client.api_key
+    storage_services_manager_provider = providers.Factory(
+        StorageServiceManager,
+        all_storage_services=storage_services_list_provider,
+        selected_storage_services=config.selected_storage_services
+    )
+
+
+class ApiClients(containers.DeclarativeContainer):
+    config = providers.Configuration()
+
+    weather_client_provider = providers.Factory(
+        OpenweathermapByCityAPIClient, api_key=config.weather_client.api_key
     )
 
 
 class Master(containers.DeclarativeContainer):
-    services = providers.DependenciesContainer()
+    storage_services = providers.DependenciesContainer()
+
+    api_clients = providers.DependenciesContainer()
 
     mappers = providers.DependenciesContainer()
 
-    master_service = providers.Factory(
+    master_service_provider = providers.Factory(
         MasterService,
-        api_client=services.api_client_service,
-        client_storage_mapper=mappers.client_storage_mapper,
-        storage_services=services.storage_services,
+        weather_client=api_clients.weather_client_provider,
+        client_storage_mapper=mappers.client_storage_mapper_provider,
+        storage_services_manager=storage_services.storage_services_manager_provider,
     )
 
 
 class Application(containers.DeclarativeContainer):
     config = providers.Configuration()
-    config.from_dict(di_configuration_dict)
 
-    mappers = providers.Container(Mappers)
+    mappers = providers.Container(
+        Mappers
+    )
 
     repositories = providers.Container(
-        Repositories, config=config.repositories, mappers=mappers
+        Repositories,
+        config=config.repositories,
+        mappers=mappers
     )
 
-    services = providers.Container(
-        Services, config=config.services, repositories=repositories
+    database = providers.Container(
+        Database,
+        config=config.database
     )
 
-    master = providers.Container(Master, services=services, mappers=mappers)
+    units_of_work = providers.Container(
+        UnitsOfWork,
+        database=database,
+        repositories=repositories
+    )
+
+    storage_services = providers.Container(
+        StorageServices,
+        config=config.storage_services,
+        repositories=repositories,
+        units_of_work=units_of_work
+    )
+
+    api_clients = providers.Container(
+        ApiClients,
+        config=config.api_clients
+    )
+
+    master = providers.Container(
+        Master,
+        storage_services=storage_services,
+        api_clients=api_clients,
+        mappers=mappers
+    )
 
 
 if __name__ == "__main__":
     application = Application()
-    application.wire(modules=[__name__])
+    settings_dict = Settings().model_dump()
+    application.config.from_dict(settings_dict)
 
-    master_service = application.master()
-    master_service.start()
+    master_service = application.master.master_service_provider()
+    c = 1

@@ -2,16 +2,17 @@ import asyncio
 
 import pytest
 
-from src.config import settings
-from src.database.db import Base, async_engine
+from src.config import Settings
+from src.database.db import Database
 
 
 @pytest.fixture(scope="session", autouse=True)
 async def setup_db():
-    assert settings.MODE == "TEST"
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+    settings_test = Settings()
+    database_test = Database(db_url=settings_test.database.dsn)
+    assert settings_test.database.mode == "TEST"
+
+    await database_test.delete_and_create_database()
 
 
 @pytest.fixture(scope="session")

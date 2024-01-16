@@ -1,5 +1,4 @@
-from src.config import settings
-
-
 def test1():
-    assert settings.MODE == "TEST"
+    a = 1
+    b = 2
+    assert a != b
