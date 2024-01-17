@@ -16,6 +16,8 @@ services:
     image: postgres:14.0-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./.env.db
     ports:
       - 5433:5432
     healthcheck:
