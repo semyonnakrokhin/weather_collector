@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  app:
+    build: ./src
+    volumes:
+      - text_volume:/home/output_text
+      - json_volume:/home/output_json
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - semyon-network
+
+  db:
+    image: postgres:14.0-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - 5433:5432
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "aviablog_db", "-U", "semyon" ]
+    networks:
+      - semyon-network
+
+volumes:
+  postgres_data:
+  text_volume:
+  json_volume:
+networks:
+  semyon-network:
+    driver: bridge
