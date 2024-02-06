@@ -10,7 +10,7 @@
 ![](https://img.shields.io/badge/isort-5.12.0-grey)
 
 
-Проект Weather Collector представляет собой демонстратор архитектуры веб-приложения, разработанный с использованием принципов SOLID, YAGNI, слоистой архитектуры и других паттернов проектирования. В рамках приложения также использован DI-контейнер с применением фреймворка dependency-injector.
+Проект Weather Collector представляет собой демонстратор архитектуры веб-приложения, разработанный с использованием принципов SOLID, слоистой архитектуры и других паттернов проектирования. В рамках приложения также использован DI-контейнер с применением фреймворка dependency-injector.
 
 
 ### Функции приложения
@@ -27,11 +27,15 @@
 ### Конфигурация и запуск приложения
 
 DI-контейнер `Application` (src.di_container.Application) выстраивает дерево зависимостей, используемых в приложении.
-Pydantic-модель `Settings` (src.config.Settings) аккумулирует в себе данные из переменных окружения .env и .test.env и представляет их в виде структуры, совместимой с контейнером `Application`.
-Во время тестирования приложения плагин pytest-dotenv подменяет значения общих переменных файлов .env и .test.env значениями из .test.env.
+Приложение конфигурируется на основе файлов: .env и .test.env, config.ini, logging.yaml. Файл .env и .test.env читаются
+Pydantic-моделью `DotenvSettings` (src.configurations.dotenv_file.DotenvSettings). Во время тестирования приложения плагин pytest-dotenv подменяет значения общих переменных файлов .env и .test.env значениями из .test.env.
+Файл config.ini читается объектом класса `IniConfigSettings` (src.configurations.ini_file.IniCoonfigSettings).
+Файл конфигурации логгеров logging.yaml читается объектом класса `YamlLoggingSettings` (src.configurations.yaml_file.YamlLoggingSettings).
+После того, как файлы прочитаны и помещены в соответствующие структуры, они приводятся к словарям и объединяются в общий словарь с помощью функции
+`merge_dicts` (src.configurations.merged_config.merge_dicts).
 
 В функции `create_master_service` (src.main.create_master_service) создается экземпляр контейнера,
-создается структура с настройками, которая затем прошивается в экземпляр контейнера. Функция возвращает экземпляр мастер-сервиса, ответственного за поток выполнени программы.
+в функции `get_config_dict` (src.main.get_config_dict) создается структура с настройками, которая затем прошивается в экземпляр контейнера. Функция возвращает экземпляр мастер-сервиса, ответственного за поток выполнени программы.
 
 В функции main происходит вызов функции `create_master_service`, который создает экземпляр мастер-сервиса.
 Экземпляр вызывает метод `start`, который запускает поток выполнения программы.
@@ -42,37 +46,17 @@ Pydantic-модель `Settings` (src.config.Settings) аккумулирует 
 
 В файле .env содержится:
   - Секретный API-ключ для соединения со сторонним сервисом
-  - Набор выбранных сервисов для хранения данных (на выбор ["db", "json", "text"])
-  - Имена директорий, где будут храниться файлы с текстовыми и json данными
   - Параметры подключения к базе данных
 
-.env:
-```plaintext
-API_CLIENTS__WEATHER_CLIENT__API_KEY=some_api_key
-
-STORAGE_SERVICES__SELECTED_STORAGE_SERVICES=db,json,text
-
-REPOSITORIES__TEXT_REPO__DIRECTORY=output_text
-REPOSITORIES__JSON_REPO__DIRECTORY=output_json
-
-DATABASE__MODE=DEV
-DATABASE__DB_HOST=localhost
-DATABASE__DB_PORT=5432
-DATABASE__DB_USER=weather_user
-DATABASE__DB_PASS=qwerty
-DATABASE__DB_NAME=weather_db
-```
 В файле .test.env содержатся параметры подключения к тестовой базе данных
 
-.test.env:
-```plaintext
-DATABASE__MODE=TEST
-DATABASE__DB_HOST=localhost
-DATABASE__DB_PORT=5432
-DATABASE__DB_USER=weather_user
-DATABASE__DB_PASS=qwerty
-DATABASE__DB_NAME=weather_test_db
-```
+В файле config.ini содержится:
+  - В разделе [storage_services] набор выбранных сервисов для хранения данных (на выбор ["db", "json", "text"])
+  - В разделе [repositories] имена директорий, где будут храниться файлы с текстовыми и json данными
+
+В файле logging.yaml содержится конфигурационная информация для логгеров
+
+Конкретные именя переменных, опций и разделов можно найти в файле [environment.txt](https://github.com/semyonnakrokhin/weather_collector/blob/main/environment.txt)
 
 ### Общая архитектура приложения
 
@@ -95,6 +79,39 @@ DATABASE__DB_NAME=weather_test_db
 - **`WeatherORMModel`** представляет собой ОРМ модель SQLAlchemy
 - **`TextfileEntity`** содержит рекомандации и шаблон, как оформлять строку для записи в файл. Является строкой
 - **`JsonEntity`** содержит незначительные изменения по сравнению с `WeatherDomain`, касательно того, как будет выглядеть формат `datetime` при сериализации
+
+
+# Запуск в контейнерах Docker
+1. Перейдите в директорию с вашими проектами.
+2. Склонируйте репозиторий на свой локальный компьютер:
+
+```shell
+# Linux
+> https://github.com/semyonnakrokhin/weather_collector.git
+```
+
+3. Перейдите в каталог проекта:
+
+```shell
+# Linux
+> cd weather_collector
+```
+
+4. В этой директории создайте файлы, перечисленные в [environment.txt](https://github.com/semyonnakrokhin/weather_collector/blob/main/environment.txt)
+
+5. Выполните команду находясь в корневой директории проекта:
+
+```shell
+# Linux
+> docker-compose up --build
+```
+
+6. Для остановки контейнеров выполните команду:
+
+```shell
+# Linux
+> docker-compose down
+```
 
 
 # Обычная установка и запуск на локальном хосте
@@ -193,9 +210,6 @@ ALTER DATABASE weather_test_db OWNER TO weather_user;
 > pytest -s --pdb tests/tests
 (Pdb) q
 ```
-
-# Запуск в контейнерах Docker
-[в процессе]
 
 # Вклад
 Если вы хотите внести свой вклад в Weather Collector, пожалуйста, ознакомьтесь с CONTRIBUTING.md для получения дополнительной информации о том, как начать.

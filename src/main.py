@@ -57,7 +57,7 @@ def create_master_service() -> MasterService:
     return master_service
 
 
-async def main():
+async def main() -> None:
     master_service = create_master_service()
     await master_service.start()
 
