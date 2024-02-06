@@ -2,26 +2,34 @@ version: '3.8'
 
 services:
   app:
-    build: ./src
+    build: .
     volumes:
-      - text_volume:/home/output_text
-      - json_volume:/home/output_json
+      - text_volume:${APP_DIR}/output_text
+      - json_volume:${APP_DIR}/output_json
+    env_file:
+      - ./.env
     depends_on:
       db:
         condition: service_healthy
     networks:
       - semyon-network
+    command:
+      - sh
+      - -c
+      - |
+        alembic upgrade head
+        python src/main.py
 
   db:
     image: postgres:14.0-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     env_file:
-      - ./.env.db
+      - ./.env.postgres
     ports:
       - 5433:5432
     healthcheck:
-      test: [ "CMD", "pg_isready", "-q", "-d", "aviablog_db", "-U", "semyon" ]
+      test: [ "CMD", "pg_isready", "-q", "-d", "weather_db", "-U", "semyon" ]
     networks:
       - semyon-network
 

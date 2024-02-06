@@ -9,7 +9,6 @@ parent_directory = os.path.join(os.getcwd(), "..")
 sys.path.append(parent_directory)
 
 from app_types import DM  # noqa
-from exceptions import RepositoryValidationException  # noqa
 
 
 class AbstractRepository(ABC, Generic[DM]):

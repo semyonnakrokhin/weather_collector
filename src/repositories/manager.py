@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from typing import List, Tuple, Type
@@ -7,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 parent_directory = os.path.join(os.getcwd(), "..")
 sys.path.append(parent_directory)
 
+from exceptions import InvalidSessionTypeError  # noqa
+from exceptions import RepositoryNotFoundError  # noqa
 from repositories.abstractions import AbstractDatabaseRepository  # noqa
+
+logger = logging.getLogger("app.repository_manager")
 
 
 class DatabaseRepositoriesManager:
@@ -22,48 +27,34 @@ class DatabaseRepositoriesManager:
     """
 
     def __init__(self, repository_instances: List[AbstractDatabaseRepository]):
-        """Initializes the manager with a list of AbstractDatabaseRepository
-        instances.
-
-        Parameters::
-            repository_instances (List[AbstractDatabaseRepository]): The list of
-            repository instances to manage.
-        """
         self._repositories = {
             repo.__class__.__name__: repo for repo in repository_instances
         }
 
     def get_all_repositories(self) -> Tuple[AbstractDatabaseRepository]:
-        """Returns all registered AbstractDatabaseRepository instances.
-
-        Returns:
-            Tuple[AbstractDatabaseRepository]: A tuple containing
-            all repository instances.
-        """
+        """Returns all registered AbstractDatabaseRepository instances."""
         return tuple(self._repositories.values())
 
     def get_repository(
         self, repository_class: Type[AbstractDatabaseRepository]
     ) -> AbstractDatabaseRepository:
         """Returns a specific AbstractDatabaseRepository instance based on its
-        class type.
-
-        Parameters:
-            repository_class (Type[AbstractDatabaseRepository]): The class type
-            of the repository.
-
-        Returns:
-            AbstractDatabaseRepository: The requested repository instance.
-        """
+        class type."""
         repo_name_str = repository_class.__name__
+        if repo_name_str not in self._repositories:
+            error_message = f"Repository {repo_name_str} not found."
+            logger.error(error_message)
+            raise RepositoryNotFoundError(error_message)
+
         return self._repositories[repo_name_str]
 
     def set_session_for_all(self, session: AsyncSession) -> None:
-        """Sets the database session for all registered repositories.
+        """Sets the database session for all registered repositories."""
+        if not isinstance(session, AsyncSession):
+            error_message = "Session must be of type AsyncSession"
+            logger.error(error_message)
+            raise InvalidSessionTypeError(error_message)
 
-        Parameters:
-            session (AsyncSession): The database session to be set for all repositories.
-        """
         for repo in self._repositories.values():
             repo.set_session(session)
 

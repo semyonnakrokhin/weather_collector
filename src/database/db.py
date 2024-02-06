@@ -1,7 +1,10 @@
+import logging
 from contextlib import AbstractContextManager, contextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+
+logger = logging.getLogger("app.database")
 
 
 class Base(DeclarativeBase):

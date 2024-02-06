@@ -1,14 +1,19 @@
+import logging
 import os
 import sys
 from datetime import date, datetime, time
+from typing import NoReturn, Union
 
 parent_directory = os.path.join(os.getcwd(), "..")
 sys.path.append(parent_directory)
 
+from exceptions import MappingError  # noqa
 from mappers.abstractions import AbstractDomainEntityMapper, AbstractDTOMapper  # noqa
 from models.domains import Celsius, WeatherDomain, WeatherTypeOpenweathermap  # noqa
 from models.dto import JsonOpenweathermapResponseDTO  # noqa
 from models.entities import JsonEntity, TextfileEntity, WeatherORMModel  # noqa
+
+logger = logging.getLogger("app.mappers")
 
 
 class OpenweathermapWeatherMapper(
@@ -18,18 +23,11 @@ class OpenweathermapWeatherMapper(
     for transforming OpenWeatherMap weather data from DTO to the domain
     model."""
 
-    def to_target(self, source_obj: JsonOpenweathermapResponseDTO) -> WeatherDomain:
+    def to_target(
+        self, source_obj: JsonOpenweathermapResponseDTO
+    ) -> Union[WeatherDomain, NoReturn]:
         """Maps data from a JsonOpenweathermapResponseDTO to a WeatherDomain
-        object.
-
-        Args:
-            source_obj (JsonOpenweathermapResponseDTO): The source DTO
-            representing OpenWeatherMap weather data.
-
-        Returns:
-            WeatherDomain: The target domain model object representing weather
-            information.
-        """
+        object."""
 
         translation = {
             "THUNDERSTORM": "Гроза",
@@ -49,16 +47,30 @@ class OpenweathermapWeatherMapper(
             "CLOUDS": "Облачно",
         }
 
-        return WeatherDomain(
-            timestamp=source_obj["timestamp"].replace(microsecond=0),
-            city=source_obj["name"],
-            temperature=Celsius(source_obj["main"]["temp"] - 273),
-            weather_type=WeatherTypeOpenweathermap(
-                translation[source_obj["weather"][0]["main"].upper()]
-            ),
-            sunrise=datetime.fromtimestamp(source_obj["sys"]["sunrise"]).time(),
-            sunset=datetime.fromtimestamp(source_obj["sys"]["sunset"]).time(),
-        )
+        try:
+            return WeatherDomain(
+                timestamp=source_obj["timestamp"].replace(microsecond=0),
+                city=source_obj["name"],
+                temperature=Celsius(source_obj["main"]["temp"] - 273),
+                weather_type=WeatherTypeOpenweathermap(
+                    translation[source_obj["weather"][0]["main"].upper()]
+                ),
+                sunrise=datetime.fromtimestamp(source_obj["sys"]["sunrise"]).time(),
+                sunset=datetime.fromtimestamp(source_obj["sys"]["sunset"]).time(),
+            )
+        except KeyError as e:
+            error_message = (
+                f"Error mapping weather data: Missing key {str(e)} "
+                f"in source object {type(source_obj)}."
+            )
+            logger.error(error_message)
+            raise MappingError(error_message)
+        except Exception as e:
+            error_message = (
+                f"Unexpected error occurred during weather mapping: {str(e)}"
+            )
+            logger.error(error_message)
+            raise MappingError(error_message)
 
 
 class WeatherDatabaseMapper(AbstractDomainEntityMapper[WeatherDomain, WeatherORMModel]):
@@ -66,36 +78,29 @@ class WeatherDatabaseMapper(AbstractDomainEntityMapper[WeatherDomain, WeatherORM
     interface for transforming weather data between the domain model and the
     database entity."""
 
-    def to_entity(self, domain_obj: WeatherDomain) -> WeatherORMModel:
-        """Maps data from a WeatherDomain object to a WeatherORMModel entity.
+    def to_entity(self, domain_obj: WeatherDomain) -> Union[WeatherORMModel, NoReturn]:
+        """Maps data from a WeatherDomain object to a WeatherORMModel entity."""
 
-        Args:
-            domain_obj (WeatherDomain): The source domain model representing
-            weather data.
+        try:
+            return WeatherORMModel(**domain_obj.model_dump())
+        except Exception as e:
+            error_message = f"Error mapping WeatherDomain to WeatherORMModel: {str(e)}"
+            logger.error(error_message)
+            raise MappingError(error_message)
 
-        Returns:
-            WeatherORMModel: The target entity object representing
-            weather data in the database.
-        """
+    def to_domain(self, entity_obj: WeatherORMModel) -> Union[WeatherDomain, NoReturn]:
+        """Maps data from a WeatherORMModel entity to a WeatherDomain object."""
 
-        return WeatherORMModel(**domain_obj.model_dump())
-
-    def to_domain(self, entity_obj: WeatherORMModel) -> WeatherDomain:
-        """Maps data from a WeatherORMModel entity to a WeatherDomain object.
-
-        Args:
-            entity_obj (WeatherORMModel): The source entity object representing
-            weather data in the database.
-
-        Returns:
-            WeatherDomain: The target domain model object representing weather data.
-        """
-
-        payload = {
-            column: getattr(entity_obj, column)
-            for column in entity_obj.__table__.c.keys()
-        }
-        return WeatherDomain(**payload)
+        try:
+            payload = {
+                column: getattr(entity_obj, column)
+                for column in entity_obj.__table__.c.keys()
+            }
+            return WeatherDomain(**payload)
+        except Exception as e:
+            error_message = f"Error mapping WeatherORMModel to WeatherDomain: {str(e)}"
+            logger.error(error_message)
+            raise MappingError(error_message)
 
 
 class TextfileMapper(AbstractDomainEntityMapper[WeatherDomain, TextfileEntity]):
@@ -111,72 +116,72 @@ class TextfileMapper(AbstractDomainEntityMapper[WeatherDomain, TextfileEntity]):
     TIME_FORMAT = "%H:%M"
 
     def to_entity(self, domain_obj: WeatherDomain) -> TextfileEntity:
-        """Maps data from a WeatherDomain object to a TextfileEntity.
+        """Maps data from a WeatherDomain object to a TextfileEntity."""
 
-        Args:
-            domain_obj (WeatherDomain): The source domain model
-            representing weather data.
+        try:
+            domain_dict = domain_obj.model_dump()
+            formatted_string = (
+                f"Date: {domain_dict['timestamp'].date().strftime(self.DATE_FORMAT)}\n"
+                f"Time: {domain_dict['timestamp'].time().strftime(self.TIME_FORMAT)}"
+                f" UTC\n"
+                f"City: {domain_dict['city']}\n"
+                f"Temperature: {domain_dict['temperature']} °C\n"
+                f"Weather type: {domain_dict['weather_type'].value}\n"
+                f"Sunrise: {domain_dict['sunrise'].strftime(self.TIME_FORMAT)} UTC\n"
+                f"Sunset: {domain_dict['sunset'].strftime(self.TIME_FORMAT)} UTC"
+            )
+            return TextfileEntity(formatted_string)
+        except Exception as e:
+            error_message = f"Error mapping WeatherDomain to TextfileEntity: {str(e)}"
+            logger.error(error_message)
+            raise MappingError(error_message)
 
-        Returns:
-            TextfileEntity: The target entity object
-            representing weather data in a text file.
-        """
+    def to_domain(self, entity_obj: TextfileEntity) -> Union[WeatherDomain, NoReturn]:
+        """Maps data from a TextfileEntity to a WeatherDomain object."""
 
-        domain_dict = domain_obj.model_dump()
-        formatted_string = (
-            f"Date: {domain_dict['timestamp'].date().strftime(self.DATE_FORMAT)}\n"
-            f"Time: {domain_dict['timestamp'].time().strftime(self.TIME_FORMAT)} UTC\n"
-            f"City: {domain_dict['city']}\n"
-            f"Temperature: {domain_dict['temperature']} °C\n"
-            f"Weather type: {domain_dict['weather_type'].value}\n"
-            f"Sunrise: {domain_dict['sunrise'].strftime(self.TIME_FORMAT)} UTC\n"
-            f"Sunset: {domain_dict['sunset'].strftime(self.TIME_FORMAT)} UTC"
-        )
-        return TextfileEntity(formatted_string)
+        try:
+            lines = entity_obj.strip().split("\n")
 
-    def to_domain(self, entity_obj: TextfileEntity) -> WeatherDomain:
-        """Maps data from a TextfileEntity to a WeatherDomain object.
+            timestamp_value = {}
+            result = {}
+            for line in lines:
+                _key, _value = line.split(": ")
+                __value, *_ = _value.split()
 
-        Args:
-            entity_obj (TextfileEntity): The source entity object
-            representing weather data in a text file.
+                if _key in ("Date", "Time"):
+                    timestamp_value[_key.lower()] = __value
+                    continue
 
-        Returns:
-            WeatherDomain: The target domain model object representing weather data.
-        """
+                if _key == "Weather type":
+                    _key = "_".join(_key.split())
 
-        lines = entity_obj.strip().split("\n")
+                try:
+                    __value = Celsius(__value)
+                except ValueError:
+                    pass
 
-        timestamp_value = {}
-        result = {}
-        for line in lines:
-            _key, _value = line.split(": ")
-            __value, *_ = _value.split()
+                try:
+                    __value = WeatherTypeOpenweathermap(__value)
+                except ValueError:
+                    pass
 
-            if _key in ("Date", "Time"):
-                timestamp_value[_key.lower()] = __value
-                continue
+                result[_key.lower()] = __value
 
-            if _key == "Weather type":
-                _key = "_".join(_key.split())
+            date_obj = date(*map(int, timestamp_value["date"].split(".")[::-1]))
+            time_obj = time(*map(int, timestamp_value["time"].split(":")))
+            result["timestamp"] = datetime.combine(date_obj, time_obj)
 
-            try:
-                __value = Celsius(__value)
-            except ValueError:
-                pass
-
-            try:
-                __value = WeatherTypeOpenweathermap(__value)
-            except ValueError:
-                pass
-
-            result[_key.lower()] = __value
-
-        date_obj = date(*map(int, timestamp_value["date"].split(".")[::-1]))
-        time_obj = time(*map(int, timestamp_value["time"].split(":")))
-        result["timestamp"] = datetime.combine(date_obj, time_obj)
-
-        return WeatherDomain(**result)
+            return WeatherDomain(**result)
+        except (KeyError, ValueError) as e:
+            error_message = f"Error extracting date and time data: {str(e)}"
+            logger.error(error_message)
+            raise MappingError(error_message)
+        except Exception as e:
+            error_message = (
+                f"Unexpected error occurred during weather mapping: {str(e)}"
+            )
+            logger.error(error_message)
+            raise MappingError(error_message)
 
 
 class JsonMapper(AbstractDomainEntityMapper[WeatherDomain, JsonEntity]):
@@ -185,37 +190,30 @@ class JsonMapper(AbstractDomainEntityMapper[WeatherDomain, JsonEntity]):
     entity."""
 
     def to_entity(self, domain_obj: WeatherDomain) -> JsonEntity:
-        """Maps data from a WeatherDomain object to a JsonEntity.
+        """Maps data from a WeatherDomain object to a JsonEntity."""
 
-        Args:
-            domain_obj (WeatherDomain): The source domain model
-            representing weather data.
+        try:
+            payload = domain_obj.model_dump()
 
-        Returns:
-            JsonEntity: The target entity object
-            representing weather data in JSON format.
-        """
+            formatted_time = payload["timestamp"].isoformat()
+            formatted_sunrise = payload["sunrise"].isoformat()
+            formatted_sunset = payload["sunset"].isoformat()
+            payload["timestamp"] = formatted_time
+            payload["sunrise"] = formatted_sunrise
+            payload["sunset"] = formatted_sunset
 
-        payload = domain_obj.model_dump()
-
-        formatted_time = payload["timestamp"].isoformat()
-        formatted_sunrise = payload["sunrise"].isoformat()
-        formatted_sunset = payload["sunset"].isoformat()
-        payload["timestamp"] = formatted_time
-        payload["sunrise"] = formatted_sunrise
-        payload["sunset"] = formatted_sunset
-
-        return JsonEntity(payload)
+            return JsonEntity(payload)
+        except Exception as e:
+            error_message = f"Error mapping WeatherDomain to JsonEntity: {str(e)}"
+            logger.error(error_message)
+            raise MappingError(error_message)
 
     def to_domain(self, entity_obj: JsonEntity) -> WeatherDomain:
-        """Maps data from a JsonEntity to a WeatherDomain object.
+        """Maps data from a JsonEntity to a WeatherDomain object."""
 
-        Args:
-            entity_obj (JsonEntity): The source entity object
-            representing weather data in JSON format.
-
-        Returns:
-            WeatherDomain: The target domain model object representing weather data.
-        """
-
-        return WeatherDomain(**entity_obj)
+        try:
+            return WeatherDomain(**entity_obj)
+        except Exception as e:
+            error_message = f"Error mapping JsonEntity to WeatherDomain: {str(e)}"
+            logger.error(error_message)
+            raise MappingError(error_message)

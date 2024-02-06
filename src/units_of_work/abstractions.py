@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from abc import ABC, abstractmethod
@@ -9,9 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 parent_directory = os.path.join(os.getcwd(), "..")
 sys.path.append(parent_directory)
 
-from exceptions import RepositoryValidationException  # noqa
+from exceptions import DatabaseError  # noqa
+from exceptions import DatabaseRepositoriesManagerError  # noqa
+from exceptions import MappingError  # noqa
+from exceptions import RepositoryError  # noqa
+from exceptions import RepositoryNotFoundError  # noqa
+from exceptions import RepositoryValidationError  # noqa
+from exceptions import SessionNotSetError  # noqa
 from repositories.abstractions import AbstractDatabaseRepository  # noqa
 from repositories.manager import DatabaseRepositoriesManager  # noqa
+
+logger = logging.getLogger("app.unit_of_work")
 
 
 class IUnitOfWork(ABC):
@@ -54,17 +63,7 @@ class BaseUnitOfWork(IUnitOfWork):
         database_repositories_manager: DatabaseRepositoriesManager,
         async_session_factory: AbstractContextManager[AsyncSession],
     ):
-        """Initializes the BaseUnitOfWork instance with a database repositories
-        manager and async session factory.
-
-        Parameters:
-            database_repositories_manager (DatabaseRepositoriesManager): The manager
-            for database repositories.
-            async_session_factory (AbstractContextManager[AsyncSession]): The async
-            session factory.
-        """
         self._database_repositories_manager = database_repositories_manager
-        self.validate_allowed_repositories()
         self._async_session_factory = async_session_factory
 
         self._session: Optional[AsyncSession] = None
@@ -84,31 +83,40 @@ class BaseUnitOfWork(IUnitOfWork):
         )
         rp2 = set(self.allowed_repository_classes)
         if rp1 != rp2:
-            raise RepositoryValidationException(
-                "Mismatch between allowed_repository_classes "
-                "and actual repository classes."
-            )
+            error_message = "Mismatch between allowed_repository_classes "
+            "and actual repository classes."
+            logger.error(error_message)
+            raise RepositoryValidationError(error_message)
 
     async def __aenter__(self):
-        """Async context manager entry method.
-
-        Creates a session for working within a single transaction. Sets
-        the created session for all repository instances within the
-        database_repositories_manager.
-        """
+        """Async context manager entry method."""
+        self.validate_allowed_repositories()
         self._session = self._async_session_factory()
         self._database_repositories_manager.set_session_for_all(session=self._session)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit method.
+        """Async context manager exit method."""
 
-        Rolls back the transaction, clears the session for all
-        repository instances within the database_repositories_manager,
-        and closes the session upon exit.
-        """
+        if exc_type is not None:
+            if isinstance(
+                exc_val,
+                (SessionNotSetError, MappingError, RepositoryError, DatabaseError),
+            ):
+                logger.error(
+                    f"An error occurred during unit of work "
+                    f"context execution: {exc_val}"
+                )
+            else:
+                logger.error(
+                    "An unexpected error occurred "
+                    "during unit of work context execution"
+                )
+
         await self.rollback()
         self._database_repositories_manager.clear_session_for_all()
         await self._session.close()
+
+        return True
 
     async def commit(self):
         await self._session.commit()
@@ -119,14 +127,21 @@ class BaseUnitOfWork(IUnitOfWork):
     def get_repository(
         self, repository_class: Type[AbstractDatabaseRepository]
     ) -> AbstractDatabaseRepository:
-        """Returns the repository instance for the specified repository class.
-
-        Parameters:
-            repository_class (Type[AbstractDatabaseRepository]): The repository class.
-
-        Returns:
-            The repository instance.
-        """
-        return self._database_repositories_manager.get_repository(
-            repository_class=repository_class
-        )
+        """Returns the repository instance for the specified repository class."""
+        try:
+            return self._database_repositories_manager.get_repository(
+                repository_class=repository_class
+            )
+        except RepositoryNotFoundError as e:
+            error_message = (
+                f"Invalid repository class type or repository not found "
+                f"in the repositories manager: {str(e)}"
+            )
+            logger.error(error_message)
+            raise RepositoryNotFoundError(error_message)
+        except Exception as e:
+            error_message = (
+                f"An error occurred at the level of the repositories manager: {str(e)}"
+            )
+            logger.error(error_message)
+            raise DatabaseRepositoriesManagerError(error_message)

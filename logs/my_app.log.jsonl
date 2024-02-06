@@ -1,0 +1,1 @@
+{"level": "ERROR", "message": "An unexpected error occurred while converting data: name 'jlkjl' is not defined", "timestamp": "2024-02-05T22:21:55.970633+00:00", "logger": "app.master", "module": "master", "function": "start", "line": 75, "thread_name": "MainThread"}

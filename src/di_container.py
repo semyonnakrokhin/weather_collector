@@ -1,9 +1,14 @@
+import logging.config
+import os
+from pprint import pprint
+
 from dependency_injector import containers, providers
 
 from apiclients.realisations import OpenweathermapByCityAPIClient
-from config import Settings
-
-# from config_1_7 import Settings
+from configurations.dotenv_file import DotenvSettings
+from configurations.ini_file import IniConfigSettings
+from configurations.merged_config import merge_dicts
+from configurations.yaml_file import YamlLoggingSettings
 from database.db import Database
 from mappers.realisations import (
     JsonMapper,
@@ -21,6 +26,15 @@ from repositories.realisations import (
 from storage_services.manager import StorageServiceManager
 from storage_services.realisations import DatabaseService, FileService
 from units_of_work.realisations import WeatherUnitOfWork
+
+
+class Core(containers.DeclarativeContainer):
+    config = providers.Configuration()
+
+    logging_provider = providers.Resource(
+        logging.config.dictConfig,
+        config=config,
+    )
 
 
 class Mappers(containers.DeclarativeContainer):
@@ -138,6 +152,8 @@ class Master(containers.DeclarativeContainer):
 class Application(containers.DeclarativeContainer):
     config = providers.Configuration()
 
+    core = providers.Container(Core, config=config.logging)
+
     mappers = providers.Container(Mappers)
 
     repositories = providers.Container(
@@ -168,9 +184,43 @@ class Application(containers.DeclarativeContainer):
 
 
 if __name__ == "__main__":
+    ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+
+    dotenv_settings = DotenvSettings(
+        _env_file=os.path.join(ROOT_DIR, ".env")
+    ).model_dump()
+    config_ini_settings = IniConfigSettings(
+        ini_file=os.path.join(ROOT_DIR, "config.ini"), root_dir=ROOT_DIR
+    )
+    logging_yaml_settings = YamlLoggingSettings(
+        yaml_file=os.path.join(ROOT_DIR, "logging.yaml")
+    )
+    settings_dict = merge_dicts(
+        dotenv_settings, config_ini_settings, logging_yaml_settings
+    )
+    pprint(settings_dict)
+
     application = Application()
-    settings_dict = Settings().model_dump()
     application.config.from_dict(settings_dict)
+    application.core.init_resources()
 
     master_service = application.master.master_service_provider()
-    c = 1
+
+    # Полезные вещи про логгер
+    logger = logging.getLogger("my_app")
+
+    effective_level = logger.getEffectiveLevel()
+    # Выводим текущий уровень записей (level)
+    print("Effective logging level:", effective_level)
+
+    loggers = logging.Logger.manager.loggerDict
+
+    # Выведите имена всех логгеров
+    for name, logger in loggers.items():
+        print(name)
+
+    logger.debug("debug message", extra={"x": "hello"})
+    logger.info("info message")
+    logger.warning("warning message")
+    logger.error("error message")
+    logger.critical("critical message")
