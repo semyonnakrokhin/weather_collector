@@ -2,6 +2,8 @@ import asyncio
 import os
 from typing import Dict
 
+from dependency_injector import containers
+
 from configurations.dotenv_file import DotenvSettings
 from configurations.ini_file import IniConfigSettings
 from configurations.merged_config import merge_dicts
@@ -37,30 +39,36 @@ def get_config_dict() -> Dict:
     return settings_dict
 
 
-def create_master_service() -> MasterService:
-    """
-    Creates and configures the master service.
-
-    This function initializes an instance of the Application class, which is a container
-    provided by the Dependency Injector framework. It retrieves configuration settings
-    using the get_config_dict() function, configures the application
-    with these settings, and initializes its resources. Finally, it obtains
-    the master service from the application container and returns it.
-    """
+def create_app_container(config_dict: Dict) -> containers.DeclarativeContainer:
+    """This function initializes an instance of the Application class,
+    which is a container provided by the Dependency Injector framework.
+    It retrieves configuration settings using the get_config_dict() function,
+    configures the application with these settings,
+    and initializes its resources."""
 
     application = Application()
-    application.config.from_dict(get_config_dict())
+    application.config.from_dict(config_dict)
     application.core.init_resources()
 
-    master_service = application.master.master_service_provider()
+    return application
+
+
+def create_master_service(
+    app_container: containers.DeclarativeContainer,
+) -> MasterService:
+    """Creates and configures the master service."""
+
+    master_service = app_container.master.master_service_provider()
 
     return master_service
 
 
-async def main() -> None:
-    master_service = create_master_service()
+async def main(app_container: containers.DeclarativeContainer) -> None:
+    master_service = create_master_service(app_container=app_container)
     await master_service.start()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    settings_dict = get_config_dict()
+    application_container = create_app_container(config_dict=settings_dict)
+    asyncio.run(main(app_container=application_container))

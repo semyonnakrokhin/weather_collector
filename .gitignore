@@ -23,3 +23,6 @@ output_text/
 .env
 .test.env
 *.env*
+
+# Logs
+logs/*
